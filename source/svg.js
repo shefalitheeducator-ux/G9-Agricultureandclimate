@@ -222,6 +222,23 @@ var SVGS = {
   return s+'</svg>';
  }
 };
+/* friendly cloud guide for the road map */
+SVGS.mascot = function(){
+ return '<svg class="mascot" viewBox="0 0 96 80" width="84" height="70" aria-hidden="true">'
+  +'<path d="M24 66h50a16 16 0 0 0 2-31.9A22 22 0 0 0 34 28a17 17 0 0 0-10 38z" style="fill:var(--surface);stroke:var(--ink);stroke-width:2.5;stroke-linejoin:round"/>'
+  +'<circle cx="42" cy="46" r="4.5" style="fill:var(--ink)"/><circle cx="60" cy="46" r="4.5" style="fill:var(--ink)"/><circle cx="43.5" cy="44.5" r="1.4" style="fill:var(--surface)"/><circle cx="61.5" cy="44.5" r="1.4" style="fill:var(--surface)"/>'
+  +'<path d="M44 55q7 6 14 0" style="fill:none;stroke:var(--ink);stroke-width:2.5;stroke-linecap:round"/>'
+  +'<circle cx="35" cy="54" r="3.5" style="fill:var(--t-pink)"/><circle cx="67" cy="54" r="3.5" style="fill:var(--t-pink)"/>'
+  +'<path d="M50 10v8M38 14l3 6M62 14l-3 6" style="stroke:var(--sun);stroke-width:2.5;stroke-linecap:round"/></svg>';
+};
+/* one small picture per mission, used on the road and the mission banner */
+SVGS.micon = function(k){
+ var a='style="fill:none;stroke:var(--ink);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"', b='<svg class="micon" viewBox="0 0 64 64" aria-hidden="true">';
+ if(k==='ATM') return b+'<path d="M8 50a24 24 0 0 1 48 0" style="fill:var(--t-blue)"/><path d="M8 50a24 24 0 0 1 48 0M16 50a16 16 0 0 1 32 0M24 50a8 8 0 0 1 16 0" '+a+'/><path d="M6 50h52" '+a+'/><path d="M44 18l6-3-2 6z" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.8;stroke-linejoin:round"/></svg>';
+ if(k==='WEA') return b+'<circle cx="40" cy="22" r="9" style="fill:var(--sun);stroke:var(--ink);stroke-width:2.2"/><path d="M16 46h28a9 9 0 0 0 0-18 12 12 0 0 0-22 3 8 8 0 0 0-6 15z" style="fill:var(--surface);stroke:var(--ink);stroke-width:2.2;stroke-linejoin:round"/><path d="M12 54h24M20 59h20" '+a+'/></svg>';
+ if(k==='MON') return b+'<path d="M14 38h34a10 10 0 0 0 0-20 13 13 0 0 0-24 3 9 9 0 0 0-10 17z" style="fill:var(--t-lilac);stroke:var(--ink);stroke-width:2.2;stroke-linejoin:round"/><path d="M20 45l-3 7M31 45l-3 7M42 45l-3 7" style="stroke:var(--rain);stroke-width:2.6;stroke-linecap:round"/><path d="M10 58h44" '+a+'/></svg>';
+ return b+'<circle cx="32" cy="32" r="20" style="fill:var(--t-mint);stroke:var(--ink);stroke-width:2.2"/><path d="M20 24q6 2 8 8t8 6M36 16q-2 6 4 8t8 2" '+a+'/><path d="M44 46q8-4 10-14q-10 1-13 9" style="fill:var(--good-soft);stroke:var(--good);stroke-width:2.2;stroke-linejoin:round"/></svg>';
+};
 SVGS.breezeDay = function(){ return SVGS.breeze({mode:'day'}); };
 SVGS.breezeNight = function(){ return SVGS.breeze({mode:'night'}); };
 SVGS.monsoonSummer = function(){ return SVGS.monsoon({mode:'summer'}); };

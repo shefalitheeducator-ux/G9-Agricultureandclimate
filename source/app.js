@@ -5,7 +5,6 @@ var app = document.getElementById('app');
 var IT = {}; ITEMS.forEach(function(i){ IT[i.id]=i; i.tm = uniq((i.mis||[]).concat((i.chips||[]).map(function(c){return c.m;})).filter(Boolean)); });
 var DIAG = ITEMS.filter(function(i){return i.use==='diag';});
 var LET = 'ABCDEF';
-var REP = [['diagram','Diagram'],['story','Story'],['steps','Steps'],['activity','Try it'],['video','Video']];
 var K1 = [['farm','Farms and villages'],['city','Towns and cities'],['coast','The coast and the sea'],['hills','Hills and mountains']];
 var K2 = [['diagram','Pictures and diagrams'],['story','A real-life story'],['steps','Clear steps, one at a time'],['activity','Trying a quick activity']];
 var ROUTE = {
@@ -20,12 +19,13 @@ var KEY = 'sky2soil-pal-v1';
 function uniq(a){ return a.filter(function(x,i){ return a.indexOf(x)===i; }); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function r2(x){ return Math.round(x*100)/100; }
-function freshCl(){ return {m:0,dm:null,route:null,reason:'',mis:[],resolved:[],level:1,seen:[],up:0,down:0,pc:0,hints:0,stage:'intro',ri:0,agree:{},cp:{tries:0,passed:false,set:[],idx:0,res:[]},pcAtFail:0,flag:false,override:false,status:'new',relearn:false,prereqDone:false,lastType:null,log:[],tab:null}; }
+function freshCl(){ return {acts:{},act:null,m:0,dm:null,route:null,reason:'',mis:[],resolved:[],level:1,seen:[],up:0,down:0,pc:0,hints:0,stage:'hub',ri:0,agree:{},cp:{tries:0,passed:false,set:[],idx:0,res:[]},pcAtFail:0,flag:false,override:false,status:'new',relearn:false,prereqDone:false,lastType:null,log:[],tab:null}; }
 function fresh(){ return {v:1,id:newId(),name:'',cls:'',k1:null,k2:null,view:'welcome',diag:{i:0,ans:{}},cl:{ATM:freshCl(),WEA:freshCl(),MON:freshCl(),CLC:freshCl()},mission:null,ui:null,frq:{},rub:{},routines:{},fp:{},pledge:{},reflect:{},notes:{},events:[],scale:1,tTab:'report',tf:{cl:'all',use:'all'},review:null,showAns:false}; }
 function newId(){ var c='abcdefghijklmnopqrstuvwxyz0123456789', a=new Uint8Array(20), id=''; try{ crypto.getRandomValues(a); }catch(e){ for(var i=0;i<a.length;i++) a[i]=Math.random()*256; } for(var j=0;j<a.length;j++) id+=c[a[j]%36]; return id; }
 function load(){ try{ var t=localStorage.getItem(KEY); if(!t) return null; var o=JSON.parse(t); return (o && o.v===1)?o:null; }catch(e){ return null; } }
 var S = load() || fresh();
 if(!S.id) S.id=newId();
+ORDER.forEach(function(k){ var C=S.cl[k]; C.acts=C.acts||{}; if(['intro','learn','ready'].indexOf(C.stage)>=0) C.stage='hub'; });
 var lastKey = '';
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} queueSync(); }
 
@@ -91,9 +91,8 @@ function readyForCp(k){
  return (C.pc>=min && C.m>=0.75) || C.pc>=6;
 }
 function newUI(id, mode, cl){ var it=IT[id]; return {id:id,mode:mode,cl:cl,sel:it.type==='multi'?[]:it.type==='dnd'?{}:null,att:0,hints:0,conf:null,done:false,res:null,wrongIdx:[],bad:[],pick:null,firstMis:[],tryMsg:false}; }
-function loadNextPractice(k){ var it=pickPractice(k); if(!it){ S.cl[k].stage='ready'; S.ui=null; return; } S.ui=newUI(it.id,'prac',k); }
-function firstStage(k){ var C=S.cl[k]; if(k==='MON' && S.cl.WEA.m<0.6 && S.cl.WEA.status!=='mastered' && !C.prereqDone) return 'prereq'; return afterPrereq(k); }
-function afterPrereq(k){ var C=S.cl[k]; if(C.route==='repair' && C.mis.length) return 'repair'; if(C.route==='extend') return 'practice'; return 'learn'; }
+function loadNextPractice(k){ var it=pickPractice(k); if(!it){ var C=S.cl[k]; C.acts.practice=true; C.stage='hub'; S.ui=null; toast('You have tried every practice question.'); return; } S.ui=newUI(it.id,'prac',k); }
+function needPrereq(k){ return k==='MON' && S.cl.WEA.m<0.6 && S.cl.WEA.status!=='mastered' && !S.cl.MON.prereqDone; }
 function setStage(k, st){
  var C=S.cl[k]; C.stage=st; S.ui=null;
  if(st==='practice') loadNextPractice(k);
@@ -151,7 +150,7 @@ function evalCp(k){
 
 /* ---------- shared view pieces ---------- */
 function rail(){
- var steps=['Start','About you','Clues','My map','Missions','Finish'];
+ var steps=['Start','About you','Clues','My road','Missions','Finish'];
  var idx={welcome:0,k1:1,k2:1,howto:2,diag:2,map:3,mission:4,finish:5,review:5}[S.view]||0;
  return '<nav class="rail" aria-label="Your journey"><ol>'+steps.map(function(s,i){ return '<li class="'+(i<idx?'done':i===idx?'now':'')+'"'+(i===idx?' aria-current="step"':'')+'><span class="dot" aria-hidden="true"></span>'+s+'</li>'; }).join('')+'</ol></nav>';
 }
@@ -246,7 +245,7 @@ function vWelcome(){
  +'<div class="field"><label for="nm">What is your name?</label><input id="nm" data-save="name" value="'+esc(S.name)+'" autocomplete="given-name" maxlength="40"></div>'
  +'<p class="err" id="nmErr" hidden>Please type your name to begin.</p>'
  +'<div class="field"><label for="cls">Your class and section <span class="small">(for example 9A)</span></label><input id="cls" data-save="cls" value="'+esc(S.cls)+'" maxlength="20"></div>'
- +'<div class="row"><button class="btn" data-act="start">'+(S.diag.i>=DIAG.length?'Go to my map':S.diag.i>0?'Continue':'Let’s begin')+'</button></div>'
+ +'<div class="row"><button class="btn" data-act="start">'+(S.diag.i>=DIAG.length?'Go to my road':S.diag.i>0?'Continue':'Let’s begin')+'</button></div>'
  +'<p class="small">We save your name, class and answers on this device and send them to your teacher. Use A− and A+ at the top to change the text size.</p></div></section>';
 }
 function vK(n){
@@ -268,37 +267,90 @@ function vDiag(){
   +'<h2 class="vh" data-focus tabindex="-1">Clue '+(S.diag.i+1)+'</h2>'+renderItem(it,'diag')+'</section>';
 }
 function recommended(){ for(var i=0;i<ORDER.length;i++){ var s=S.cl[ORDER[i]].status; if(s!=='mastered' && s!=='practised') return ORDER[i]; } return null; }
+var LANE = {
+ foundation:['Step-by-step lane','We’ll go one small step at a time. Hints are always ready for you.','pink'],
+ guided:['Guided lane','We’ll start with a solved example, then practise together.','blue'],
+ repair:['Fix-an-idea lane','First we’ll check an idea that trips up many people. Then we practise.','peach'],
+ extend:['Fast lane','You know a lot already. Jump straight into the challenge questions.','mint'],
+ confirm:['Quick-check lane','A few quick questions will show what you really know.','butter']
+};
+function isDone(k){ var st=S.cl[k].status; return st==='mastered'||st==='practised'; }
+function unlocked(k){ var i=ORDER.indexOf(k); return i===0 || isDone(ORDER[i-1]) || S.cl[k].status!=='new'; }
 function vMap(){
- var rec=recommended(), anyDone=ORDER.some(function(k){ return S.cl[k].status==='mastered'||S.cl[k].status==='practised'; });
- var h='<section class="stack"><div class="stack"><p class="eyebrow">My learning map</p><h1 data-focus tabindex="-1">Hi '+esc(S.name.trim()||'there')+'!</h1><p>Four missions. Do one at a time.</p></div>';
- if(rec){ var C=S.cl[rec], c=CL[rec];
-  h+='<div class="card mcard rec"><p class="eyebrow">Up next · Mission '+c.no+'</p><h2>'+esc(c.name)+'</h2><p>'+esc(c.topic)+'</p><div class="row"><button class="btn" data-act="open" data-cl="'+rec+'">'+(C.status==='active'?'Continue':'Start')+'</button></div></div>';
- } else h+='<div class="card mcard rec"><p class="eyebrow">All missions done</p><h2>Well done!</h2><p>Now look back at what you learned.</p><div class="row"><button class="btn" data-act="finish">Reflect on my learning</button></div></div>';
- h+='<ol class="mlist" aria-label="All missions">'+ORDER.map(function(k){ var C=S.cl[k], done=C.status==='mastered'||C.status==='practised';
-  return '<li><button class="mstep'+(done?' done':k===rec?' now':'')+'" data-act="open" data-cl="'+k+'"><span class="n" aria-hidden="true">'+(done?'✓':CL[k].no)+'</span><span class="t">'+esc(CL[k].name)+'</span><span class="s">'+(C.status==='mastered'?'Badge earned':done?'Done':C.status==='active'?'In progress':k===rec?'Up next':'')+'</span></button></li>';
+ var rec=recommended(), anyDone=ORDER.some(isDone), nm=esc(S.name.trim()||'there');
+ var h='<section class="stack"><div class="hello">'+SVGS.mascot()+'<p class="bubble" data-focus tabindex="-1">'+(rec?'Hi '+nm+'! Next stop: <strong>'+esc(CL[rec].name)+'</strong>.':'Hi '+nm+'! You reached the end of the road. 🎉')+'</p></div>';
+ if(rec && S.cl[rec].route){ var ln=LANE[S.cl[rec].route]; h+='<div class="lane t-'+ln[2]+'"><h2>'+ln[0]+'</h2><p>'+ln[1]+'</p></div>'; }
+ h+='<ol class="road" aria-label="My road">'+ORDER.map(function(k,i){ var C=S.cl[k], done=isDone(k), open=unlocked(k), now=k===rec;
+  var sub = C.status==='mastered'?'★ Badge earned' : done?'✓ Done' : C.status==='active'?'In progress · '+doneCount(k)+' of '+NEED+' activities' : now?'Next stop' : open?'Open' : 'Opens after '+esc(CL[ORDER[i-1]].name);
+  return '<li class="'+(done?'done':now?'now':open?'':'locked')+'"><span class="node">'+SVGS.micon(k)+'</span><button class="stop" data-act="open" data-cl="'+k+'"'+(open?'':' aria-disabled="true"')+'><span class="st">'+esc(CL[k].name)+'</span><span class="ss">'+sub+'</span></button></li>';
  }).join('')+'</ol>';
+ if(!rec) h+='<button class="btn wide" data-act="finish">Reflect on my learning</button>';
  h+='<div class="row between"><button class="linkbtn" data-act="toggle-ans" aria-expanded="'+S.showAns+'">'+(S.showAns?'Hide':'See')+' my clue answers</button>'+(anyDone&&rec?'<button class="linkbtn" data-act="finish">Finish and reflect</button>':'')+'</div>';
  if(S.showAns){ h+='<div class="card"><ol class="anslist">'+DIAG.map(function(d){ var a=S.diag.ans[d.id]; if(!a) return ''; return '<li><p>'+esc(d.stem)+'</p><p class="small">You chose <strong>'+LET[a.choice]+'</strong>. '+(a.correct?'That is right.':'The answer is <strong>'+LET[d.key]+'</strong>: '+esc(d.opts[d.key])+'.')+'</p><p class="small">'+esc(d.exp)+'</p></li>'; }).join('')+'</ol></div>'; }
  return h+'</section>';
 }
-function stageSteps(k){
- var C=S.cl[k], st=['learn','practice','cp','apply'], names={repair:'Fix an idea',prereq:'Warm-up',learn:'Learn',practice:'Practise',cp:'Checkpoint',apply:'Apply'};
- if(C.route==='repair'&&C.mis.length) st.unshift('repair'); if(k==='MON'&&!C.prereqDone&&S.cl.WEA.m<0.6&&S.cl.WEA.status!=='mastered') st.unshift('prereq');
- var cur={intro:-1,ready:st.indexOf('cp'),cpres:st.indexOf('cp'),done:st.length}[C.stage]; if(cur==null) cur=st.indexOf(C.stage);
- return {n:st.length, cur:cur, name:names[st[cur]]};
+var TRY = {ATM:'Climb the sky',WEA:'Day and night by the sea',MON:'Turn the seasons',CLC:'My carbon footprint'};
+var AICON = {
+ eye:'<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.6"/>',
+ bulb:'<path d="M9 17h6M10 20h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z"/>',
+ pic:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/>',
+ book:'<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>',
+ list:'<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-width="3"/>',
+ hand:'<path d="M12 3v9M8 6v7M16 6v7M4 11c0 6 3 10 8 10s8-4 8-10"/>',
+ play:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/>',
+ check:'<path d="M9 11l3 3 7-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
+ pencil:'<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 7l3 3"/>',
+ wind:'<path d="M3 9h12a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3"/>'
+};
+function aicon(n){ return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+AICON[n]+'</svg>'; }
+/* the learning choices for one mission; "you" marks the ones that suit this learner */
+function acts(k){
+ var C=S.cl[k], L=LESSON[k], ctx=S.k1||'farm', pref=S.k2, a=[];
+ if(needPrereq(k) || C.acts.prereq) a.push({id:'prereq',t:'Warm-up',s:'Pressure and wind, in one question',ic:'wind',col:'butter',you:true});
+ if(C.mis.length || C.acts.repair) a.push({id:'repair',t:'Fix an idea',s:C.mis.length?'Many people think: “'+MIS[C.mis[0]].think+'”':'Ideas you checked',ic:'bulb',col:'peach',you:C.route==='repair'});
+ a.push({id:'diagram',t:'Picture it',s:L.figs.length+' diagrams to explore',ic:'pic',col:'blue',you:pref==='diagram'});
+ a.push({id:'story',t:'Real-life story',s:'A story from '+(K1.filter(function(x){return x[0]===ctx;})[0]||K1[0])[1].toLowerCase(),ic:'book',col:'pink',you:pref==='story'});
+ a.push({id:'steps',t:'Step by step',s:L.steps.length+' short steps',ic:'list',col:'lilac',you:pref==='steps'});
+ a.push({id:'activity',t:'Try it',s:TRY[k],ic:'hand',col:'mint',you:pref==='activity'});
+ a.push({id:'video',t:'Explainer clip',s:VIDEOS.filter(function(v){return v.id===L.videos[0];})[0].title,ic:'play',col:'pink',you:false});
+ if(L.we) a.push({id:'we',t:'Solved example',s:'A question solved step by step',ic:'check',col:'lilac',you:C.route==='guided'||C.route==='foundation'||C.route==='confirm'});
+ a.push({id:'routine',t:'Thinking routine',s:L.routine.name.replace(/–/g,' · '),ic:'eye',col:'blue',you:false});
+ var practice={id:'practice',t:'Practice questions',s:'Quick questions with hints',ic:'pencil',col:'butter',you:C.route==='extend'};
+ return a.filter(function(x){ return x.you; }).concat(a.filter(function(x){ return !x.you; }), [practice]);
 }
+function doneCount(k){ var C=S.cl[k]; return acts(k).filter(function(x){ return C.acts[x.id]; }).length; }
+var NEED = 3;
 function vMission(){
- var k=S.mission, C=S.cl[k], c=CL[k], p=stageSteps(k), h='<section class="stack"><div><button class="linkbtn" data-act="tomap">← My map</button></div>';
- var step = p.cur<0 ? p.n+' short steps' : p.cur>=p.n ? 'All steps done' : 'Step '+(p.cur+1)+' of '+p.n+' · '+p.name;
- h+='<div class="stack mhead"><p class="eyebrow">Mission '+c.no+'</p><h1 data-focus tabindex="-1">'+esc(c.name)+'</h1><p class="small"><strong>'+step+'</strong></p>'+(p.cur<0?'':'<div class="meter thin" aria-hidden="true"><i style="width:'+Math.round(Math.min(p.cur+1,p.n)/p.n*100)+'%"></i></div>')+'</div>';
- var fn={intro:sIntro,prereq:sPrereq,repair:sRepair,learn:sLearn,practice:sPractice,ready:sReady,cp:sCp,cpres:sCpres,apply:sApply,done:sDone}[C.stage];
- return h+fn(k)+'</section>';
+ var k=S.mission, C=S.cl[k], c=CL[k];
+ if(C.stage==='hub') return '<section class="stack"><div><button class="linkbtn" data-act="tomap">← My road</button></div>'+sHub(k)+'</section>';
+ var fn={prereq:sPrereq,repair:sRepair,act:sAct,practice:sPractice,cp:sCp,cpres:sCpres,apply:sApply,done:sDone}[C.stage]||sHub;
+ var back = C.stage==='done' ? '<button class="linkbtn" data-act="tomap">← My road</button>' : '<button class="linkbtn" data-act="hub">← Activities</button>';
+ return '<section class="stack"><div class="row between">'+back+'<p class="eyebrow">Mission '+c.no+' · '+esc(c.name)+'</p></div>'+fn(k)+'</section>';
 }
-function sIntro(k){
- var c=CL[k];
- return '<div class="card stack"><p class="eyebrow">Big question</p><h2>'+esc(c.big)+'</h2>'
- +'<details class="words"><summary>What will I learn?</summary><ul class="list">'+c.los.map(function(l){return '<li>'+esc(LOS[l])+'</li>';}).join('')+'</ul></details>'
- +'<div class="row"><button class="btn" data-act="mgo">Let’s go</button></div></div>';
+function sHub(k){
+ var C=S.cl[k], c=CL[k], n=doneCount(k), ready=n>=NEED, list=acts(k);
+ var h='<div class="mbanner m-'+k+'">'+SVGS.micon(k)+'<div class="stack" style="gap:4px"><p class="eyebrow">Mission '+c.no+'</p><h1 data-focus tabindex="-1">'+esc(c.name)+'</h1><p>'
+  +(C.cp.passed?'Badge earned! Try the challenge to use what you know.':ready?'Great! You can take the mission check now.':'Do '+NEED+' short activities, then the check.')+'</p>'
+  +'<p class="dots" aria-label="'+Math.min(n,NEED)+' of '+NEED+' activities done">'+[0,1,2].map(function(i){ return '<i class="'+(i<n?'on':'')+'"></i>'; }).join('')+'</p></div></div>';
+ h+='<ul class="acts">'+list.map(function(x){ var d=C.acts[x.id];
+  return '<li><button class="actcard'+(d?' done':'')+'" data-act="act" data-v="'+x.id+'"><span class="tile t-'+x.col+'">'+aicon(x.ic)+'</span><span class="stack" style="gap:2px;min-width:0"><span class="at">'+esc(x.t)+(x.you&&!d?' <span class="tag you">For you</span>':'')+(d?' <span class="tag ok">✓ Done</span>':'')+'</span><span class="as">'+esc(x.s)+'</span></span></button></li>';
+ }).join('')+'</ul>';
+ if(C.cp.passed) h+='<button class="btn wide" data-act="to-apply">Go to the challenge</button>';
+ else h+='<button class="btn wide" data-act="start-cp"'+(ready?'':' disabled')+'>Take the mission check</button><p class="small center">'+(ready?'2 new questions. No hints this time.':'Opens after '+(NEED-n)+' more '+(NEED-n===1?'activity':'activities')+'.')+'</p>';
+ return h;
+}
+function sAct(k){
+ var C=S.cl[k], L=LESSON[k], ctx=S.k1||'farm', id=C.act, x=acts(k).filter(function(a){ return a.id===id; })[0] || {t:'',ic:'pic',col:'blue'};
+ var words='<details class="words"><summary>Words to know</summary><dl>'+L.words.map(function(w){return '<dt>'+esc(w[0])+'</dt><dd>'+esc(w[1])+'</dd>';}).join('')+'</dl></details>';
+ var h='<div class="card stack"><div class="row between"><div class="row"><span class="tile t-'+x.col+'">'+aicon(x.ic)+'</span><h2 data-focus tabindex="-1">'+esc(x.t)+'</h2></div>'+speakBtn('panel-'+k)+'</div><div class="panel stack" id="panel-'+k+'">';
+ if(id==='diagram') h+=L.figs.map(figHTML).join('')+words;
+ if(id==='story') h+='<p class="story">'+esc(L.stories[ctx])+'</p><p class="small">Want a story from another place? <button class="linkbtn" data-act="ctx">Change place</button></p><div class="farm"><p class="eyebrow">'+ICON.sprout+' Farm connection</p><p>'+esc(L.farm)+'</p></div>';
+ if(id==='steps') h+='<ol class="steps">'+L.steps.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol>'+words;
+ if(id==='activity') h+=activityHTML(k);
+ if(id==='video') h+=L.videos.map(function(vid){ var v=VIDEOS.filter(function(z){return z.id===vid;})[0]; return '<div class="vid"><div class="vid-ph" aria-hidden="true">▶</div><div><p class="eyebrow">Video '+v.id+' · '+v.min+'</p><p><strong>'+esc(v.title)+'</strong></p><p class="small">This video is being made. Here is the short version:</p><p>'+esc(v.short)+'</p></div></div>'; }).join('');
+ if(id==='we' && L.we) h+='<div class="we"><p><strong>'+esc(L.we.q)+'</strong></p><ol>'+L.we.steps.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol><p><strong>Answer:</strong> '+esc(L.we.a)+'</p></div>';
+ if(id==='routine') h+=routineHTML('L-'+k, L.routine);
+ return h+'</div><div class="row"><button class="btn" data-act="act-done">Done, back to activities</button></div></div>';
 }
 function sPrereq(k){
  var u=S.ui, it=IT[u.id];
@@ -309,25 +361,8 @@ function sRepair(k){
  var C=S.cl[k], code=C.mis[Math.min(C.ri,C.mis.length-1)], m=MIS[code], ag=C.agree[code];
  var h='<div class="card stack"><p class="eyebrow">Fix an idea · '+(Math.min(C.ri,C.mis.length-1)+1)+' of '+C.mis.length+'</p><h2>Many people think:</h2><blockquote class="claim">“'+esc(m.think)+'”</blockquote>';
  h+='<p>Do you agree?</p><div class="row">'+[['yes','I agree'],['unsure','Not sure'],['no','I disagree']].map(function(o){return '<button class="chip" data-act="agree" data-v="'+o[0]+'" aria-pressed="'+(ag===o[0])+'">'+o[1]+'</button>';}).join('')+'</div>';
- if(ag){ h+='<div class="fb learn"><p><strong>What really happens:</strong> '+esc(m.fact)+'</p></div>'+(m.fig?figHTML({svg:m.fig}):'')+'<p class="small">Video '+m.video+': '+esc(VIDEOS.filter(function(v){return v.id===m.video;})[0].title)+'. You will test this idea again in practice.</p><div class="row"><button class="btn" data-act="repair-next">'+(C.ri<C.mis.length-1?'Next idea':'Go to the lesson')+'</button><button class="btn ghost" data-act="skip-practice">Skip to practice</button></div>'; }
+ if(ag){ h+='<div class="fb learn"><p><strong>What really happens:</strong> '+esc(m.fact)+'</p></div>'+(m.fig?figHTML({svg:m.fig}):'')+'<p class="small">Video '+m.video+': '+esc(VIDEOS.filter(function(v){return v.id===m.video;})[0].title)+'. You will test this idea again in practice.</p><div class="row"><button class="btn" data-act="repair-next">'+(C.ri<C.mis.length-1?'Next idea':'Done, back to activities')+'</button></div>'; }
  return h+'</div>';
-}
-function sLearn(k){
- var C=S.cl[k], L=LESSON[k], tab=C.tab || S.k2 || 'diagram', ctx=S.k1||'farm', h='<div class="card stack">';
- if((C.route==='guided'||C.route==='confirm'||C.relearnShown) && L.we){ h+='<div class="we"><p class="eyebrow">Worked example</p><p><strong>'+esc(L.we.q)+'</strong></p><ol>'+L.we.steps.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol><p><strong>Answer:</strong> '+esc(L.we.a)+'</p></div>'; }
- h+='<div class="tabs" role="tablist" aria-label="Ways to learn">'+REP.map(function(r){ return '<button role="tab" class="tab" data-act="tab" data-v="'+r[0]+'" aria-selected="'+(tab===r[0])+'">'+r[1]+'</button>'; }).join('')+'</div>';
- h+='<div class="panel" role="tabpanel" id="panel-'+k+'">';
- if(tab==='diagram') h+=L.figs.map(figHTML).join('');
- if(tab==='story') h+='<p class="eyebrow">A story from '+esc((K1.filter(function(x){return x[0]===ctx;})[0]||K1[0])[1].toLowerCase())+'</p><p class="story">'+esc(L.stories[ctx])+'</p><p class="small">Want another place? Change it on the <button class="linkbtn" data-act="ctx">story settings</button>.</p>';
- if(tab==='steps') h+='<ol class="steps">'+L.steps.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ol>';
- if(tab==='activity') h+=activityHTML(k);
- if(tab==='video') h+=L.videos.map(function(id){ var v=VIDEOS.filter(function(x){return x.id===id;})[0]; return '<div class="vid"><div class="vid-ph" aria-hidden="true">▶</div><div><p class="eyebrow">Video '+v.id+' · '+v.min+'</p><p><strong>'+esc(v.title)+'</strong></p><p class="small">This video is being made. Here is the short version:</p><p>'+esc(v.short)+'</p></div></div>'; }).join('');
- h+='</div><div class="row">'+speakBtn('panel-'+k)+'</div>';
- h+='<div class="farm"><p class="eyebrow">'+ICON.sprout+' Farm connection</p><p>'+esc(L.farm)+'</p></div>';
- h+='<details class="words"><summary>Words to know</summary><dl>'+L.words.map(function(w){return '<dt>'+esc(w[0])+'</dt><dd>'+esc(w[1])+'</dd>';}).join('')+'</dl></details>';
- h+=routineHTML('L-'+k, L.routine);
- h+='<div class="row"><button class="btn" data-act="to-practice">I’m ready to practise</button></div></div>';
- return h;
 }
 function routineHTML(key, R){
  var v=S.routines[key]||[];
@@ -357,19 +392,15 @@ function sPractice(k){
  var C=S.cl[k];
  if(C.relearn && !S.ui){ return '<div class="card stack"><h2>Let’s look at this another way</h2><p>These ideas are tricky. A different kind of explanation often helps.</p><div class="row"><button class="btn" data-act="relearn">Open the lesson another way</button><button class="btn ghost" data-act="relearn-skip">Keep practising</button></div></div>'; }
  if(!S.ui || S.ui.cl!==k || S.ui.mode!=='prac') loadNextPractice(k);
- if(C.stage!=='practice') return sReady(k);
+ if(C.stage!=='practice') return sHub(k);
  var it=IT[S.ui.id];
- return '<div class="card stack"><div class="row between"><p class="eyebrow">Practice '+(C.pc+(S.ui.done?0:1))+' · Level '+C.level+' of 3</p>'+speakBtn('stem-'+it.id)+'</div>'+renderItem(it,'prac')+'</div>';
-}
-function sReady(k){
- var C=S.cl[k], more=poolLeft(k).length>0;
- return '<div class="card stack"><h2>'+(C.cp.tries?'Ready to try the checkpoint again?':'You’re ready for the checkpoint!')+'</h2><p>The checkpoint has 2 new questions. There are no hints, and you will say how sure you are.</p><div class="row"><button class="btn" data-act="start-cp">Start the checkpoint</button>'+(more?'<button class="btn ghost" data-act="more-practice">Practise a little more</button>':'')+'</div></div>';
+ return '<div class="card stack"><div class="row between"><p class="eyebrow">Practice question '+(C.pc+(S.ui.done?0:1))+'</p>'+speakBtn('stem-'+it.id)+'</div>'+renderItem(it,'prac')+'</div>';
 }
 function sCp(k){ var C=S.cl[k], it=IT[S.ui.id]; return '<div class="card stack"><div class="row between"><p class="eyebrow">Checkpoint '+(C.cp.idx+1)+' of '+C.cp.set.length+'</p>'+speakBtn('stem-'+it.id)+'</div>'+renderItem(it,'cp')+'</div>'; }
 function sCpres(k){
  var C=S.cl[k];
  if(C.cp.passed) return '<div class="card stack center"><p class="badge big">'+ICON.badge+esc(CL[k].badge)+'</p><h2>Badge earned!</h2><p>You showed this in two new questions. Now try a challenge to use what you know.</p><div class="row"><button class="btn" data-act="to-apply">Go to the challenge</button></div></div>';
- return '<div class="card stack"><h2>Not quite yet, and that is fine</h2><p>'+(C.flag?'This mission is tricky. Your teacher will check in with you about it. You can still try the challenge.':'Let’s practise a little more, then try the checkpoint again.')+'</p><div class="row">'+(C.flag?'<button class="btn" data-act="to-apply">Go to the challenge</button>':'')+'<button class="btn'+(C.flag?' ghost':'')+'" data-act="more-practice">Practise more</button></div></div>';
+ return '<div class="card stack"><h2>Not quite yet, and that is fine</h2><p>'+(C.flag?'This mission is tricky. Your teacher will check in with you about it. You can still try the challenge.':'Let’s practise a little more, then try the checkpoint again.')+'</p><div class="row">'+(C.flag?'<button class="btn" data-act="to-apply">Go to the challenge</button>':'')+'<button class="btn'+(C.flag?' ghost':'')+'" data-act="more-practice">Practise more</button><button class="btn ghost" data-act="hub">Back to activities</button></div></div>';
 }
 function sApply(k){
  var h='<div class="card stack"><p class="eyebrow">Apply</p><h2>Use what you know</h2><p class="small">Write your answer first. Then open the scoring guide and tick the points you covered.</p>';
@@ -385,7 +416,7 @@ function sApply(k){
 function sDone(k){
  var C=S.cl[k], next=recommended();
  return '<div class="card stack center">'+(C.status==='mastered'?'<p class="badge big">'+ICON.badge+esc(CL[k].badge)+'</p>':'')+'<h2>Mission '+CL[k].no+' complete</h2><p>You answered '+C.log.length+' questions'+(C.resolved.length?' and fixed '+C.resolved.length+' common idea'+(C.resolved.length>1?'s':''):'')+'.</p>'
- +(C.status!=='mastered'?'<p class="small">You can come back any time to earn the badge.</p>':'')+'<div class="row">'+(next?'<button class="btn" data-act="open" data-cl="'+next+'">Next: Mission '+CL[next].no+'</button>':'<button class="btn" data-act="finish">See my learning map</button>')+'<button class="btn ghost" data-act="tomap">Back to my map</button></div></div>';
+ +(C.status!=='mastered'?'<p class="small">You can come back any time to earn the badge.</p>':'')+'<div class="row">'+(next?'<button class="btn" data-act="open" data-cl="'+next+'">Next: Mission '+CL[next].no+'</button>':'<button class="btn" data-act="finish">See my learning map</button>')+'<button class="btn ghost" data-act="tomap">Back to my road</button></div></div>';
 }
 function vFinish(){
  var h='<section class="stack"><div class="card stack"><p class="eyebrow">My learning map</p><h1 data-focus tabindex="-1">Well done, '+esc(S.name)+'</h1><p>Here is where you are now. Your map will keep changing as you learn.</p></div><div class="mgrid">';
@@ -394,12 +425,12 @@ function vFinish(){
    +(C.resolved.length?'<p class="small"><strong>Ideas you changed:</strong> '+C.resolved.map(function(m){return esc(MIS[m].think);}).join(' · ')+'</p>':'')+'</article>'; });
  h+='</div><div class="card stack"><p class="eyebrow">Thinking routine · I used to think… Now I think…</p><label for="rf1">I used to think…</label><textarea id="rf1" rows="2" data-save="reflect.used">'+esc(S.reflect.used||'')+'</textarea><label for="rf2">Now I think…</label><textarea id="rf2" rows="2" data-save="reflect.now">'+esc(S.reflect.now||'')+'</textarea>'
   +'<p class="eyebrow">Headlines</p><label for="rf3">Write a newspaper headline that sums up this chapter.</label><input id="rf3" data-save="reflect.headline" value="'+esc(S.reflect.headline||'')+'"></div>'
-  +'<div class="card stack"><h2>Quick review</h2><p>Come back in a week and take a 4-question review. It helps you remember for longer.</p><div class="row"><button class="btn" data-act="review">Start a quick review</button><button class="btn ghost" data-act="tomap">Back to my map</button></div></div></section>';
+  +'<div class="card stack"><h2>Quick review</h2><p>Come back in a week and take a 4-question review. It helps you remember for longer.</p><div class="row"><button class="btn" data-act="review">Start a quick review</button><button class="btn ghost" data-act="tomap">Back to my road</button></div></div></section>';
  return h;
 }
 function vReview(){
  var R=S.review;
- if(R.idx>=R.set.length){ var ok=R.res.filter(function(x){return x.ok;}).length; return '<section class="card stack"><h1 data-focus tabindex="-1">Review done</h1><p>You remembered <strong>'+ok+' of '+R.set.length+'</strong>.</p><p class="small">Anything you missed is worth another look in its mission.</p><div class="row"><button class="btn" data-act="tomap">Back to my map</button></div></section>'; }
+ if(R.idx>=R.set.length){ var ok=R.res.filter(function(x){return x.ok;}).length; return '<section class="card stack"><h1 data-focus tabindex="-1">Review done</h1><p>You remembered <strong>'+ok+' of '+R.set.length+'</strong>.</p><p class="small">Anything you missed is worth another look in its mission.</p><div class="row"><button class="btn" data-act="tomap">Back to my road</button></div></section>'; }
  var it=IT[R.set[R.idx]]; if(!S.ui||S.ui.id!==it.id) S.ui=newUI(it.id,'rev',it.cl);
  return '<section class="card stack"><p class="eyebrow">Quick review · '+(R.idx+1)+' of '+R.set.length+'</p><h1 class="vh" data-focus tabindex="-1">Review question</h1>'+renderItem(it,'rev')+'</section>';
 }
@@ -441,24 +472,27 @@ var A = {
   if((u.mode==='prac'||u.mode==='warm') && !r.ok && u.att===0){ u.att=1; u.firstMis=r.mis; u.tryMsg=true; if(it.type==='mcq'){ u.wrongIdx=[u.sel]; u.sel=null; } if(it.type==='dnd') u.bad=r.bad.slice(); if(it.hint && u.hints<it.hint.length) u.hints++; return; }
   finishItem(r); },
  next:function(){ var u=S.ui;
-  if(u.mode==='prac'){ var k=u.cl, C=S.cl[k]; S.ui=null; if(C.relearn) return; if(readyForCp(k)){ C.stage='ready'; } else loadNextPractice(k); return; }
+  if(u.mode==='prac'){ var k=u.cl, C=S.cl[k]; S.ui=null; if(C.relearn) return; if(C.pc>=3) C.acts.practice=true; if(readyForCp(k)){ C.acts.practice=true; C.stage='hub'; toast('Nice work! Practice done.'); } else loadNextPractice(k); return; }
   if(u.mode==='cp'){ var C2=S.cl[u.cl]; C2.cp.idx++; if(C2.cp.idx<C2.cp.set.length){ S.ui=newUI(C2.cp.set[C2.cp.idx],'cp',u.cl); } else evalCp(u.cl); return; }
   if(u.mode==='rev'){ S.review.idx++; S.ui=null; return; } },
- 'prereq-done':function(){ var k=S.mission; S.cl[k].prereqDone=true; setStage(k, afterPrereq(k)); },
+ 'prereq-done':function(){ var k=S.mission, C=S.cl[k]; C.prereqDone=true; C.acts.prereq=true; setStage(k,'hub'); },
  'toggle-ans':function(){ S.showAns=!S.showAns; },
- open:function(t){ var k=t.dataset.cl, C=S.cl[k]; if(!C.route) return false; S.mission=k; S.view='mission'; if(C.status==='new') C.status='active'; if((C.status==='mastered'||C.status==='practised') && C.stage==='done'){ C.stage='learn'; S.ui=null; } if(C.stage==='practice' && !S.ui) loadNextPractice(k); },
+ open:function(t){ var k=t.dataset.cl, C=S.cl[k]; if(!C.route) return false; if(!unlocked(k)){ toast('This stop opens after '+CL[ORDER[ORDER.indexOf(k)-1]].name+'.'); return false; } S.mission=k; S.view='mission'; if(C.status==='new') C.status='active'; if(C.stage==='done' || C.stage==='intro'){ C.stage='hub'; S.ui=null; } if(C.stage==='practice' && !S.ui) loadNextPractice(k); },
  tomap:function(){ S.view='map'; S.ui=null; },
- mgo:function(){ var k=S.mission; setStage(k, firstStage(k)); },
  agree:function(t){ var C=S.cl[S.mission], code=C.mis[Math.min(C.ri,C.mis.length-1)]; C.agree[code]=t.dataset.v; logE('elicit',{cl:S.mission,mis:code,v:t.dataset.v}); },
- 'repair-next':function(){ var k=S.mission, C=S.cl[k]; if(C.ri<C.mis.length-1){ C.ri++; } else setStage(k,'learn'); },
- 'skip-practice':function(){ setStage(S.mission,'practice'); },
- tab:function(t){ S.cl[S.mission].tab=t.dataset.v; logE('rep',{cl:S.mission,rep:t.dataset.v}); },
+ 'repair-next':function(){ var k=S.mission, C=S.cl[k]; if(C.ri<C.mis.length-1){ C.ri++; } else { C.acts.repair=true; setStage(k,'hub'); } },
+ hub:function(){ setStage(S.mission,'hub'); },
+ act:function(t){ var k=S.mission, C=S.cl[k], id=t.dataset.v; logE('act',{cl:k,act:id});
+  if(id==='prereq'){ setStage(k,'prereq'); return; }
+  if(id==='repair'){ if(!C.mis.length){ C.act='repair'; toast('You have checked all your ideas here.'); return false; } C.ri=0; setStage(k,'repair'); return; }
+  if(id==='practice'){ C.relearnShown=false; setStage(k,'practice'); return; }
+  C.act=id; setStage(k,'act'); },
+ 'act-done':function(){ var k=S.mission, C=S.cl[k]; C.acts[C.act]=true; setStage(k,'hub'); },
  ctx:function(){ var i=0; K1.forEach(function(x,j){ if(x[0]===S.k1) i=j; }); S.k1=K1[(i+1)%K1.length][0]; toast('Stories now come from: '+K1[(i+1)%K1.length][1].toLowerCase()); },
- 'to-practice':function(){ var k=S.mission; S.cl[k].relearnShown=false; setStage(k,'practice'); },
- relearn:function(){ var k=S.mission, C=S.cl[k], cur=C.tab||S.k2||'diagram', order=['diagram','story','steps','activity']; C.tab=order[(order.indexOf(cur)+1)%order.length]; C.relearn=false; C.relearnShown=true; C.stage='learn'; S.ui=null; },
+ relearn:function(){ var k=S.mission, C=S.cl[k], order=['diagram','story','steps','activity'], next=order.filter(function(x){ return !C.acts[x] && x!==S.k2; })[0]||order.filter(function(x){ return x!==S.k2; })[0]; C.act=next; C.relearn=false; C.relearnShown=true; setStage(k,'act'); },
  'relearn-skip':function(){ var k=S.mission; S.cl[k].relearn=false; loadNextPractice(k); },
  'start-cp':function(){ setStage(S.mission,'cp'); },
- 'more-practice':function(){ var k=S.mission, C=S.cl[k]; C.pcAtFail=C.pc; C.stage='practice'; S.ui=null; loadNextPractice(k); if(C.stage!=='practice'){ toast('You have tried every practice question. Try the checkpoint again.'); } },
+ 'more-practice':function(){ var k=S.mission, C=S.cl[k]; C.pcAtFail=C.pc; C.stage='practice'; S.ui=null; loadNextPractice(k); if(C.stage!=='practice'){ toast('You have tried every practice question. Try the check again.'); } },
  'to-apply':function(){ S.cl[S.mission].stage='apply'; },
  rubric:function(t){ var id=t.dataset.id; S.rub[id]=S.rub[id]||{t:[]}; S.rub[id].open=!S.rub[id].open; },
  tick:function(t){ var id=t.dataset.id, i=+t.dataset.i, r=S.rub[id], ix=r.t.indexOf(i); if(ix>=0) r.t.splice(ix,1); else r.t.push(i); },
@@ -477,7 +511,7 @@ app.addEventListener('input', function(e){ var t=e.target;
  if(t.dataset.save){ setPath(t.dataset.save, t.value); save(); if(t.id==='nm') document.getElementById('nmErr').hidden=true; }
  if(t.dataset.range==='alt'){ S.alt=+t.value; var km=posToKm(S.alt); document.getElementById('altFig').innerHTML=SVGS.layers({km:km}); document.getElementById('altInfo').innerHTML=altInfo(km,layerAt(km)); t.setAttribute('aria-valuetext',Math.round(km)+' kilometres'); save(); }
 });
-app.addEventListener('change', function(e){ var t=e.target; if(t.dataset.change==='override'){ var k=t.dataset.cl, C=S.cl[k]; setRoute(k,t.value); C.override=true; if(C.status!=='mastered'){ C.stage='intro'; if(S.ui&&S.ui.cl===k) S.ui=null; } logE('override',{cl:k,route:t.value}); toast('Route changed for Mission '+CL[k].no+'.'); render(); } });
+app.addEventListener('change', function(e){ var t=e.target; if(t.dataset.change==='override'){ var k=t.dataset.cl, C=S.cl[k]; setRoute(k,t.value); C.override=true; if(C.status!=='mastered'){ C.stage='hub'; if(S.ui&&S.ui.cl===k) S.ui=null; } logE('override',{cl:k,route:t.value}); toast('Route changed for Mission '+CL[k].no+'.'); render(); } });
 app.addEventListener('keydown', function(e){ if(e.key==='Enter' && (e.target.id==='nm'||e.target.id==='cls')){ e.preventDefault(); if(A.start()!==false) render(); } });
 app.addEventListener('dragstart', function(e){ var c=e.target.closest('.dchip'); if(!c||!S.ui) return; S.ui.pick=+c.dataset.i; try{ e.dataTransfer.setData('text/plain', c.dataset.i); e.dataTransfer.effectAllowed='move'; }catch(x){} });
 app.addEventListener('dragover', function(e){ if(e.target.closest('[data-drop]')) e.preventDefault(); });
