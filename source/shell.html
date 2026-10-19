@@ -165,11 +165,16 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .mcard{display:grid;gap:10px;align-content:start}
 .mcard.rec{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .path{font-size:.95rem}
-.trail{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:6px;font-size:.82rem}
-.trail li{padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-.trail li.done{background:var(--good-soft);border-color:var(--good);color:var(--good)}
-.trail li.now{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
 .mhead{display:grid;gap:12px}
+.mlist{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.mstep{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 14px;min-height:56px;cursor:pointer}
+.mstep:hover{border-color:var(--accent)}
+.mstep .n{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;border:2px solid var(--line);background:var(--surface-2)}
+.mstep.done .n{background:var(--good);border-color:var(--good);color:var(--surface)}
+.mstep.now{border-color:var(--accent)}
+.mstep.now .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.mstep .t{flex:1;font-weight:700;min-width:0}
+.mstep .s{font-size:.85rem;color:var(--muted);white-space:nowrap}
 .why{background:var(--surface-2);border-radius:12px;padding:12px 14px;display:grid;gap:4px}
 
 /* lessons */
