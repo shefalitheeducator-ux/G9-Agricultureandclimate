@@ -127,8 +127,6 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .opt.slim{padding:8px 12px;min-height:40px}
 .opt .pts{margin-left:auto;font-family:var(--f-mono);color:var(--muted)}
 .tagm{font-style:normal;color:var(--good);font-size:.85rem}
-.conf{background:var(--surface-2);border-radius:12px;padding:12px 14px;display:grid;gap:8px}
-.conf-q{font-weight:700}
 .actions{padding-top:2px}
 .fb{border-radius:12px;padding:14px 16px;border:1px solid var(--line);background:var(--surface-2);display:grid;gap:10px}
 .fb.good{background:var(--good-soft);border-color:var(--good)}
@@ -1091,8 +1089,6 @@ var app = document.getElementById('app');
 var IT = {}; ITEMS.forEach(function(i){ IT[i.id]=i; i.tm = uniq((i.mis||[]).concat((i.chips||[]).map(function(c){return c.m;})).filter(Boolean)); });
 var DIAG = ITEMS.filter(function(i){return i.use==='diag';});
 var LET = 'ABCDEF';
-var CONF = [['sure','I’m sure'],['some','I think so'],['guess','I guessed']];
-var CONFTXT = {sure:'Sure',some:'Think so',guess:'Guessed'};
 var REP = [['diagram','Diagram'],['story','Story'],['steps','Steps'],['activity','Try it'],['video','Video']];
 var K1 = [['farm','Farms and villages'],['city','Towns and cities'],['coast','The coast and the sea'],['hills','Hills and mountains']];
 var K2 = [['diagram','Pictures and diagrams'],['story','A real-life story'],['steps','Clear steps, one at a time'],['activity','Trying a quick activity']];
@@ -1221,10 +1217,10 @@ function finishItem(r){
   C.log.push({id:it.id,E:E,ok:r.ok,att:u.att,hints:u.hints,lv:it.lv,mode:u.mode,t:new Date().toISOString()});
   logE('attempt',{cl:k,item:it.id,ok:r.ok,E:E,hints:u.hints,att:u.att});
  } else if(u.mode==='cp'){
-  var C2=S.cl[u.cl], E2=diagE(r.ok,u.conf); u.E=E2; C2.seen.push(it.id); updM(C2,E2);
-  C2.cp.res.push({id:it.id,ok:r.ok,E:E2,conf:u.conf});
-  C2.log.push({id:it.id,E:E2,ok:r.ok,att:0,hints:0,lv:it.lv,mode:'cp',conf:u.conf,t:new Date().toISOString()});
-  logE('checkpoint',{cl:u.cl,item:it.id,ok:r.ok,conf:u.conf});
+  var C2=S.cl[u.cl], E2=diagE(r.ok,'sure'); u.E=E2; C2.seen.push(it.id); updM(C2,E2);
+  C2.cp.res.push({id:it.id,ok:r.ok,E:E2});
+  C2.log.push({id:it.id,E:E2,ok:r.ok,att:0,hints:0,lv:it.lv,mode:'cp',t:new Date().toISOString()});
+  logE('checkpoint',{cl:u.cl,item:it.id,ok:r.ok});
  } else if(u.mode==='rev'){
   S.review.res.push({id:it.id,ok:r.ok}); logE('review',{item:it.id,ok:r.ok});
  }
@@ -1267,7 +1263,7 @@ function renderItem(it, mode){
   h+='<div class="opts" role="group" aria-labelledby="stem-'+esc(it.id)+'">';
   it.opts.forEach(function(o,i){
    var cls='', dis=u.done || u.wrongIdx.indexOf(i)>=0;
-   if(u.done && mode!=='diag'){ if(i===it.key) cls='right'; else if(i===u.sel || u.wrongIdx.indexOf(i)>=0) cls='wrong'; }
+   if(u.done){ if(i===it.key) cls='right'; else if(i===u.sel || u.wrongIdx.indexOf(i)>=0) cls='wrong'; }
    else if(u.wrongIdx.indexOf(i)>=0) cls='wrong';
    h+='<button class="opt '+cls+'" data-act="pick" data-i="'+i+'" aria-pressed="'+(u.sel===i)+'"'+(dis?' disabled':'')+'><span class="let">'+LET[i]+'</span><span>'+esc(o)+'</span></button>';
   });
@@ -1283,16 +1279,14 @@ function renderItem(it, mode){
  } else h+=dndHTML(it, u);
  if(u.tryMsg && !u.done) h+='<div class="fb try" role="status"><strong>Not quite yet.</strong> Have another go. '+(it.type==='dnd'?'The cards with a dashed edge are in the wrong place.':'')+'</div>';
  if(u.hints>0 && it.hint) h+='<div class="hints">'+it.hint.slice(0,u.hints).map(function(x,i){return '<p><strong>Hint '+(i+1)+':</strong> '+esc(x)+'</p>';}).join('')+'</div>';
- var needConf = mode==='diag' || mode==='cp';
- if(needConf && complete(it,u.sel) && !u.done){
-  h+='<div class="conf" role="group" aria-label="How sure are you?"><p class="conf-q">How sure are you?</p><div class="row">'+CONF.map(function(c){ return '<button class="chip" data-act="conf" data-v="'+c[0]+'" aria-pressed="'+(u.conf===c[0])+'">'+c[1]+'</button>'; }).join('')+'</div></div>';
- }
  if(u.done && mode!=='diag') h+=feedbackHTML(it,u);
+ if(u.done && mode==='diag') h+='<div class="fb '+(u.sel===it.key?'good':'learn')+'" role="status"><p><strong>'+(u.sel===it.key?'Yes, that’s right!':'The right answer is '+LET[it.key]+'.')+'</strong></p></div>';
  h+='<div class="row actions">';
  if(mode==='diag'){
-  h+='<button class="btn" data-act="diag-next"'+(complete(it,u.sel)&&u.conf?'':' disabled')+'>'+(S.diag.i<DIAG.length-1?'Next clue':'See my starting map')+'</button>';
+  if(!u.done) h+='<button class="btn" data-act="diag-check"'+(complete(it,u.sel)?'':' disabled')+'>Check answer</button>';
+  else h+='<button class="btn" data-act="diag-next">'+(S.diag.i<DIAG.length-1?'Next clue':'See my starting map')+'</button>';
  } else if(!u.done){
-  h+='<button class="btn" data-act="check"'+(complete(it,u.sel)&&(!needConf||u.conf)?'':' disabled')+'>Check answer</button>';
+  h+='<button class="btn" data-act="check"'+(complete(it,u.sel)?'':' disabled')+'>Check answer</button>';
   if((mode==='prac'||mode==='warm') && it.hint && u.hints<it.hint.length) h+='<button class="btn ghost" data-act="hint">Show a hint</button>';
  } else {
   h+='<button class="btn" data-act="next" data-focus-after>Next</button>';
@@ -1369,7 +1363,7 @@ function vMap(){
    + '<div class="row">'+(k===rec?'<span class="tag">Start here</span>':'')+'<button class="btn'+(k===rec?'':' ghost')+'" data-act="open" data-cl="'+k+'">'+(C.status==='new'?'Start':C.status==='active'?'Continue':'Visit again')+'</button></div></article>';
  });
  h+='</div><div class="card stack"><button class="linkbtn" data-act="toggle-ans" aria-expanded="'+S.showAns+'">'+(S.showAns?'Hide':'See')+' my clue answers</button>';
- if(S.showAns){ h+='<ol class="anslist">'+DIAG.map(function(d){ var a=S.diag.ans[d.id]; if(!a) return ''; return '<li><p>'+esc(d.stem)+'</p><p class="small">You chose <strong>'+LET[a.choice]+'</strong> ('+CONFTXT[a.conf]+'). '+(a.correct?'That is right.':'The answer is <strong>'+LET[d.key]+'</strong>: '+esc(d.opts[d.key])+'.')+'</p><p class="small">'+esc(d.exp)+'</p></li>'; }).join('')+'</ol>'; }
+ if(S.showAns){ h+='<ol class="anslist">'+DIAG.map(function(d){ var a=S.diag.ans[d.id]; if(!a) return ''; return '<li><p>'+esc(d.stem)+'</p><p class="small">You chose <strong>'+LET[a.choice]+'</strong>. '+(a.correct?'That is right.':'The answer is <strong>'+LET[d.key]+'</strong>: '+esc(d.opts[d.key])+'.')+'</p><p class="small">'+esc(d.exp)+'</p></li>'; }).join('')+'</ol>'; }
  h+='</div><div class="row"><button class="btn'+(anyDone?'':' ghost')+'" data-act="finish">See my learning map and reflect</button></div></section>';
  return h;
 }
@@ -1522,9 +1516,9 @@ var A = {
  chip:function(t){ var u=S.ui, i=+t.dataset.i; u.pick = u.pick===i?null:i; },
  bucket:function(t){ var u=S.ui; if(u.pick==null){ toast('First tap a card to move.'); return false; } placeChip(u.pick, t.dataset.b); },
  tray:function(){ var u=S.ui; if(u.pick!=null) placeChip(u.pick,'tray'); },
- conf:function(t){ S.ui.conf=t.dataset.v; },
- 'diag-next':function(){ var u=S.ui, it=IT[u.id], ok=u.sel===it.key;
-  S.diag.ans[it.id]={choice:u.sel,correct:ok,conf:u.conf,mis:ok?null:it.mis[u.sel]}; logE('clue',{item:it.id,ok:ok,conf:u.conf});
+ 'diag-check':function(){ var u=S.ui, it=IT[u.id], ok=u.sel===it.key; if(u.done || u.sel==null) return false;
+  S.diag.ans[it.id]={choice:u.sel,correct:ok,conf:'sure',mis:ok?null:it.mis[u.sel]}; logE('clue',{item:it.id,ok:ok}); u.done=true; },
+ 'diag-next':function(){ if(!S.ui || !S.ui.done) return false;
   S.diag.i++; S.ui=null; if(S.diag.i>=DIAG.length){ computeRoutes(); S.view='map'; } },
  hint:function(){ S.ui.hints++; logE('hint',{item:S.ui.id}); },
  check:function(){ var u=S.ui, it=IT[u.id], r=evalItem(it,u.sel);

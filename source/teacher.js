@@ -6,7 +6,6 @@ var app = document.getElementById('app');
 var PWKEY = 'sky2soil-teacher-pw';
 var DIAG = ITEMS.filter(function(i){ return i.use==='diag'; });
 var LET = 'ABCDEF';
-var CONFTXT = {sure:'Sure',some:'Think so',guess:'Guessed'};
 var ROUTE = {foundation:'Step-by-step path',guided:'Guided path',repair:'Fix-an-idea path',extend:'Challenge path',confirm:'Quick-check path'};
 var STATUS = {'new':'Not started',active:'In progress',practised:'Practised',mastered:'Mastered'};
 var T = {pw:readPw(), list:null, loaded:null, err:'', busy:false, cls:'all', q:'', sort:'cls', open:null, scale:1};
@@ -121,8 +120,8 @@ function vLearner(L){
 
  var ans=(S.diag&&S.diag.ans)||{};
  h+='<section class="card stack"><h2>Starting quiz</h2><p class="small">'+(z.n?z.ok+' of '+z.n+' right':'Not started')+'</p>';
- if(z.n) h+='<div class="tw"><table class="data"><thead><tr><th>Question</th><th>Chose</th><th>Result</th><th>Confidence</th></tr></thead><tbody>'
-  +DIAG.map(function(d){ var a=ans[d.id]; if(!a) return ''; return '<tr><td>'+esc(d.stem)+'</td><td class="num">'+LET[a.choice]+'</td><td>'+(a.correct?'<span class="ok">Right</span>':'<span class="no">Answer '+LET[d.key]+'</span>')+'</td><td>'+esc(CONFTXT[a.conf]||'')+'</td></tr>'; }).join('')+'</tbody></table></div>';
+ if(z.n) h+='<div class="tw"><table class="data"><thead><tr><th>Question</th><th>Chose</th><th>Result</th></tr></thead><tbody>'
+  +DIAG.map(function(d){ var a=ans[d.id]; if(!a) return ''; return '<tr><td>'+esc(d.stem)+'</td><td class="num">'+LET[a.choice]+'</td><td>'+(a.correct?'<span class="ok">Right</span>':'<span class="no">Answer '+LET[d.key]+'</span>')+'</td></tr>'; }).join('')+'</tbody></table></div>';
  h+='</section>';
 
  var w=writing(S);
