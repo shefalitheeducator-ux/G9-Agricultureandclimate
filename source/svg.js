@@ -216,7 +216,7 @@ var SVGS = {
   [['band5',0,40],['band4',40,40],['band3',80,40],['band2',120,35],['band1',155,25]].forEach(function(b){ s+='<rect x="0" y="'+b[1]+'" width="800" height="'+b[2]+'" style="fill:var(--'+b[0]+')"/>'; });
   s += '<circle cx="660" cy="70" r="30" style="fill:var(--sun)"/>';
   s += '<g style="fill:var(--surface);opacity:.9"><ellipse cx="190" cy="150" rx="46" ry="14"/><ellipse cx="220" cy="140" rx="30" ry="15"/><ellipse cx="480" cy="135" rx="38" ry="12"/><ellipse cx="505" cy="127" rx="24" ry="12"/></g>';
-  s += '<path d="M0 180 Q400 160 800 180 L800 220 L0 220 Z" style="fill:var(--earth)"/>';
+  s += '<path d="M0 180 Q400 160 800 180 L800 220 L0 220 Z" style="fill:var(--st5)"/>';
   for(var i=0;i<26;i++){ var x=12+i*31; s+='<path d="M'+x+' 205 q4 -12 0 -20 M'+x+' 196 q6 -4 10 -10 M'+x+' 199 q-6 -3 -9 -9" style="stroke:var(--good);stroke-width:2;fill:none"/>'; }
   s += '<path d="M30 60 q12 -16 24 0 t24 0 t24 0" style="fill:none;stroke:var(--good);stroke-width:2.5;opacity:.7"/>';
   return s+'</svg>';
