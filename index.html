@@ -1109,11 +1109,26 @@ function uniq(a){ return a.filter(function(x,i){ return a.indexOf(x)===i; }); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function r2(x){ return Math.round(x*100)/100; }
 function freshCl(){ return {m:0,dm:null,route:null,reason:'',mis:[],resolved:[],level:1,seen:[],up:0,down:0,pc:0,hints:0,stage:'intro',ri:0,agree:{},cp:{tries:0,passed:false,set:[],idx:0,res:[]},pcAtFail:0,flag:false,override:false,status:'new',relearn:false,prereqDone:false,lastType:null,log:[],tab:null}; }
-function fresh(){ return {v:1,name:'',k1:null,k2:null,view:'welcome',diag:{i:0,ans:{}},cl:{ATM:freshCl(),WEA:freshCl(),MON:freshCl(),CLC:freshCl()},mission:null,ui:null,frq:{},rub:{},routines:{},fp:{},pledge:{},reflect:{},notes:{},events:[],scale:1,tTab:'report',tf:{cl:'all',use:'all'},review:null,showAns:false}; }
+function fresh(){ return {v:1,id:newId(),name:'',cls:'',k1:null,k2:null,view:'welcome',diag:{i:0,ans:{}},cl:{ATM:freshCl(),WEA:freshCl(),MON:freshCl(),CLC:freshCl()},mission:null,ui:null,frq:{},rub:{},routines:{},fp:{},pledge:{},reflect:{},notes:{},events:[],scale:1,tTab:'report',tf:{cl:'all',use:'all'},review:null,showAns:false}; }
+function newId(){ var c='abcdefghijklmnopqrstuvwxyz0123456789', a=new Uint8Array(20), id=''; try{ crypto.getRandomValues(a); }catch(e){ for(var i=0;i<a.length;i++) a[i]=Math.random()*256; } for(var j=0;j<a.length;j++) id+=c[a[j]%36]; return id; }
 function load(){ try{ var t=localStorage.getItem(KEY); if(!t) return null; var o=JSON.parse(t); return (o && o.v===1)?o:null; }catch(e){ return null; } }
 var S = load() || fresh();
+if(!S.id) S.id=newId();
 var lastKey = '';
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} queueSync(); }
+
+/* ---------- send progress to the teacher (only when the app is on a website, not opened as a file) ---------- */
+var SYNC_URL = 'api/save', canSync = /^https?:$/.test(location.protocol), syncT = null, lastSent = '';
+function snapshot(){ var o={}; for(var k in S) if(k!=='events' && k!=='ui' && k!=='review') o[k]=S[k]; return JSON.stringify({id:S.id,state:o}); }
+function sendNow(leaving){
+ clearTimeout(syncT); if(!canSync || !S.name.trim()) return;
+ var body=snapshot(); if(body===lastSent) return;
+ if(leaving && navigator.sendBeacon){ if(navigator.sendBeacon(SYNC_URL, new Blob([body],{type:'text/plain;charset=UTF-8'}))) lastSent=body; return; }
+ fetch(SYNC_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:body}).then(function(r){ if(r.ok) lastSent=body; }).catch(function(){});
+}
+function queueSync(){ clearTimeout(syncT); syncT=setTimeout(sendNow, 3000); }
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') sendNow(true); });
+window.addEventListener('pagehide', function(){ sendNow(true); });
 function logE(type, d){ var e={t:new Date().toISOString(),type:type}; for(var k in d) e[k]=d[k]; S.events.push(e); if(S.events.length>400) S.events.shift(); }
 function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.h); toast.h=setTimeout(function(){ t.hidden=true; },2600); }
 function applyScale(){ document.documentElement.style.setProperty('--scale', S.scale); }
@@ -1320,8 +1335,9 @@ function vWelcome(){
  +'<p class="note">This is not a test for marks. Your answers help you and your teacher choose the best place to start.</p>'
  +'<div class="field"><label for="nm">What is your name?</label><input id="nm" data-save="name" value="'+esc(S.name)+'" autocomplete="given-name" maxlength="40"></div>'
  +'<p class="err" id="nmErr" hidden>Please type your name to begin.</p>'
+ +'<div class="field"><label for="cls">Your class and section <span class="small">(for example 9A)</span></label><input id="cls" data-save="cls" value="'+esc(S.cls)+'" maxlength="20"></div>'
  +'<div class="row"><button class="btn" data-act="start">'+(S.diag.i>=DIAG.length?'Go to my map':S.diag.i>0?'Continue':'Let’s begin')+'</button></div>'
- +'<p class="small">We save only your name and your answers, on this device. Use A− and A+ at the top to change the text size.</p></div></section>';
+ +'<p class="small">We save your name, class and answers on this device and send them to your teacher. Use A− and A+ at the top to change the text size.</p></div></section>';
 }
 function vK(n){
  var Q = n===1 ? {q:'Hi '+esc(S.name)+'! Which kind of place would you like your examples to come from?',o:K1,v:S.k1,sub:'Your examples and stories will come from places like this.'}
@@ -1552,7 +1568,7 @@ app.addEventListener('input', function(e){ var t=e.target;
  if(t.dataset.range==='alt'){ S.alt=+t.value; var km=posToKm(S.alt); document.getElementById('altFig').innerHTML=SVGS.layers({km:km}); document.getElementById('altInfo').innerHTML=altInfo(km,layerAt(km)); t.setAttribute('aria-valuetext',Math.round(km)+' kilometres'); save(); }
 });
 app.addEventListener('change', function(e){ var t=e.target; if(t.dataset.change==='override'){ var k=t.dataset.cl, C=S.cl[k]; setRoute(k,t.value); C.override=true; if(C.status!=='mastered'){ C.stage='intro'; if(S.ui&&S.ui.cl===k) S.ui=null; } logE('override',{cl:k,route:t.value}); toast('Route changed for Mission '+CL[k].no+'.'); render(); } });
-app.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.id==='nm'){ e.preventDefault(); if(A.start()!==false) render(); } });
+app.addEventListener('keydown', function(e){ if(e.key==='Enter' && (e.target.id==='nm'||e.target.id==='cls')){ e.preventDefault(); if(A.start()!==false) render(); } });
 app.addEventListener('dragstart', function(e){ var c=e.target.closest('.dchip'); if(!c||!S.ui) return; S.ui.pick=+c.dataset.i; try{ e.dataTransfer.setData('text/plain', c.dataset.i); e.dataTransfer.effectAllowed='move'; }catch(x){} });
 app.addEventListener('dragover', function(e){ if(e.target.closest('[data-drop]')) e.preventDefault(); });
 app.addEventListener('drop', function(e){ var d=e.target.closest('[data-drop]'); if(!d||!S.ui||S.ui.pick==null) return; e.preventDefault(); placeChip(S.ui.pick, d.dataset.drop); render(); });
